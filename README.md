@@ -11,7 +11,7 @@ A pluggable Python SDK for real-time error tracking and AI-powered analysis.
 ## Architecture
 - **SDK**: Python package that hooks into `sys.excepthook` to capture errors.
 - **RabbitMQ**: Message broker for reliable log transport.
-- **Consumer**: Python service that processes logs, queries AI, and stores data.
+- **Consumer**: Python service that processes logs, queries Llama-3, and stores data.
 - **Dashboard**: FastAPI web app for visualizing errors and feedback.
 - **ChromaDB**: Vector database for long-term memory of solutions.
 
