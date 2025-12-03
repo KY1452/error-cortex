@@ -1,0 +1,899 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Log Analysis Assistant</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css" rel="stylesheet" />
+    <style>
+        :root {
+            --bg-color: #000000;
+            --sidebar-bg: #111111;
+            --card-bg: #111111;
+            --text-primary: #ededed;
+            --text-secondary: #a1a1a1;
+            --accent: #ededed;
+            --accent-hover: #ffffff;
+            --error: #ff4444;
+            --border: #333333;
+            --code-bg: #000000;
+            --selection-bg: rgba(255, 255, 255, 0.1);
+            --success: #00cc66;
+        }
+
+        body {
+            font-family: 'Geist Mono', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background-color: var(--sidebar-bg);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .sidebar-header h1 {
+            font-size: 1rem;
+            margin: 0;
+            font-weight: 600;
+            letter-spacing: -0.02em;
+        }
+
+        .nav-tabs {
+            display: flex;
+            padding: 1rem;
+            gap: 0.5rem;
+        }
+
+        .nav-btn {
+            flex: 1;
+            background: transparent;
+            border: 1px solid var(--border);
+            color: var(--text-secondary);
+            padding: 0.5rem;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.85rem;
+        }
+
+        .nav-btn.active {
+            background-color: var(--accent);
+            color: black;
+            border-color: var(--accent);
+        }
+
+        .file-tree {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+
+        .tree-item {
+            padding: 0.35rem 0.5rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+            border-radius: 4px;
+            font-size: 0.85rem;
+        }
+
+        .tree-item:hover {
+            background-color: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+        }
+
+        .tree-item.active {
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .tree-children {
+            margin-left: 1rem;
+            border-left: 1px solid var(--border);
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        .view-section {
+            display: none;
+            height: 100%;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        /* Logs View */
+        .log-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            align-items: center;
+        }
+
+        .service-tag {
+            background-color: #333;
+            color: #fff;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .timestamp {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            font-family: 'Geist Mono', monospace;
+        }
+
+        .error-message {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--error);
+            margin-bottom: 0.5rem;
+            font-family: 'Geist Mono', monospace;
+        }
+
+        .category {
+            display: inline-block;
+            background-color: rgba(255, 68, 68, 0.1);
+            color: var(--error);
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        .section-title {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .code-block {
+            background-color: var(--code-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-family: 'Geist Mono', monospace;
+            font-size: 0.85rem;
+            color: #e2e8f0;
+            white-space: pre-wrap;
+            border: 1px solid var(--border);
+        }
+
+        .ai-solution {
+            background-color: rgba(255, 255, 255, 0.03);
+            padding: 1.25rem;
+            border-radius: 6px;
+            border-left: 2px solid var(--accent);
+            line-height: 1.6;
+            font-size: 0.9rem;
+        }
+
+        .fix-proposal {
+            background-color: rgba(0, 204, 102, 0.05);
+            border: 1px solid rgba(0, 204, 102, 0.2);
+            border-radius: 6px;
+            padding: 1rem;
+            margin-top: 1rem;
+        }
+
+        .fix-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .fix-title {
+            color: var(--success);
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .apply-btn {
+            background-color: var(--success);
+            color: black;
+            border: none;
+            padding: 0.4rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8rem;
+            transition: opacity 0.2s;
+        }
+
+        .apply-btn:hover {
+            opacity: 0.9;
+        }
+
+        /* Code Explorer View */
+        #code-view {
+            padding: 0;
+            display: none;
+            flex-direction: column;
+        }
+
+        #code-view.active {
+            display: flex;
+        }
+
+        .code-toolbar {
+            padding: 0.5rem 1rem;
+            background-color: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .file-path {
+            font-family: 'Geist Mono', monospace;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        .ask-ai-btn {
+            background-color: var(--accent);
+            color: black;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.8rem;
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .code-viewer {
+            flex: 1;
+            background-color: var(--code-bg);
+            overflow: auto;
+            position: relative;
+        }
+
+        /* IDE Styling */
+        pre[class*="language-"] {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: transparent !important;
+            text-shadow: none !important;
+            font-family: 'Geist Mono', monospace !important;
+            font-size: 13px !important;
+            line-height: 1.4 !important;
+            /* Reduced from 1.6 */
+        }
+
+        .code-row {
+            display: flex;
+            cursor: pointer;
+            line-height: 1.4;
+            /* Match pre line-height */
+        }
+
+        .code-row:hover {
+            background-color: rgba(255, 255, 255, 0.03);
+        }
+
+        .code-row.selected {
+            background-color: var(--selection-bg);
+        }
+
+        .line-number {
+            width: 3rem;
+            text-align: right;
+            padding-right: 1rem;
+            color: #444;
+            user-select: none;
+            border-right: 1px solid #222;
+            background-color: var(--bg-color);
+            font-family: 'Geist Mono', monospace;
+            font-size: 13px;
+            line-height: 1.4;
+            /* Reduced from 1.6 */
+        }
+
+        .line-code {
+            padding-left: 1rem;
+            flex: 1;
+        }
+
+        /* Chat Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            width: 600px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            display: flex;
+            flex-direction: column;
+            max-height: 80vh;
+        }
+
+        .modal-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 1.25rem;
+        }
+
+        .chat-body {
+            padding: 1.5rem;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .chat-message {
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .chat-message.user {
+            text-align: right;
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .chat-message.ai {
+            background-color: rgba(255, 255, 255, 0.03);
+            padding: 1rem;
+            border-radius: 6px;
+        }
+
+        .context-preview {
+            background-color: var(--bg-color);
+            padding: 0.75rem;
+            border-radius: 6px;
+            font-family: 'Geist Mono', monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+            border: 1px solid var(--border);
+            max-height: 120px;
+            overflow-y: auto;
+        }
+
+        .chat-input-area {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input {
+            flex: 1;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border);
+            color: white;
+            padding: 0.75rem;
+            border-radius: 6px;
+            outline: none;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .chat-input:focus {
+            border-color: var(--accent);
+        }
+
+        .send-btn {
+            background-color: var(--accent);
+            color: black;
+            border: none;
+            padding: 0 1.25rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .send-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: var(--text-secondary);
+            margin-top: 4rem;
+        }
+
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <i class="fas fa-terminal" style="color: #ededed;"></i>
+            <h1>LOG_ANALYZER</h1>
+        </div>
+
+        <div class="nav-tabs">
+            <button class="nav-btn active" onclick="switchView('logs')">
+                <i class="fas fa-stream"></i> Logs
+            </button>
+            <button class="nav-btn" onclick="switchView('code')">
+                <i class="fas fa-code"></i> Code
+            </button>
+        </div>
+
+        <div id="file-tree-container" class="file-tree" style="display: none;">
+            <!-- File tree injected here -->
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Logs View -->
+        <div id="logs-view" class="view-section active">
+            <div id="logs-container"></div>
+        </div>
+
+        <!-- Code View -->
+        <div id="code-view" class="view-section">
+            <div class="code-toolbar">
+                <div class="file-path" id="current-file-path">No file selected</div>
+                <button class="ask-ai-btn" id="ask-ai-btn" onclick="openChat()">
+                    <i class="fas fa-magic"></i> Ask AI
+                </button>
+            </div>
+            <div id="code-viewer-container" class="code-viewer" style="display: none;"></div>
+            <div id="code-empty" class="empty-state">
+                <i class="fas fa-code"></i>
+                <p>Select a file to inspect</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chat Modal -->
+    <div id="chat-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modal-title">AI Assistant</h3>
+                <button class="close-btn" onclick="closeModal()">&times;</button>
+            </div>
+            <div class="chat-body" id="chat-body">
+                <div class="context-preview" id="context-preview"></div>
+                <div id="chat-messages"></div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" id="chat-input" class="chat-input" placeholder="Ask a question..."
+                    onkeypress="handleEnter(event)">
+                <button class="send-btn" onclick="sendQuestion()" id="send-btn">Send</button>
+                <button class="send-btn" onclick="applyFix()" id="apply-fix-btn"
+                    style="display:none; margin-left:0.5rem; background-color: var(--success);">Apply Fix</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-python.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-javascript.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-json.min.js"></script>
+
+    <script>
+        // State
+        let currentView = 'logs';
+        let currentFile = null;
+        let selectedLines = new Set();
+        let fileContentLines = [];
+        let currentSnippet = '';
+        let snippetStartLine = null;
+        let snippetEndLine = null;
+        let lastAiResponse = '';
+
+        // Initialization
+        fetchLogs();
+        fetchFileTree();
+        setInterval(fetchLogs, 3000);
+
+        // Navigation
+        function switchView(view) {
+            currentView = view;
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.view-section').forEach(section => section.classList.remove('active'));
+
+            if (view === 'logs') {
+                document.querySelector('.nav-btn:first-child').classList.add('active');
+                document.getElementById('logs-view').classList.add('active');
+                document.getElementById('file-tree-container').style.display = 'none';
+            } else {
+                document.querySelector('.nav-btn:last-child').classList.add('active');
+                document.getElementById('code-view').classList.add('active');
+                document.getElementById('file-tree-container').style.display = 'block';
+            }
+        }
+
+        let lastLogCount = 0;
+
+        // Logs Logic
+        async function fetchLogs() {
+            if (currentView !== 'logs') return;
+            try {
+                const response = await fetch('/api/logs');
+                const logs = await response.json();
+
+                // Simple check: if log count hasn't changed, don't re-render
+                // This prevents the UI from "flickering" or refreshing unnecessarily
+                if (logs.length === lastLogCount) return;
+                lastLogCount = logs.length;
+
+                const container = document.getElementById('logs-container');
+
+                container.innerHTML = logs.map(log => {
+                    let solutionHtml = '';
+                    if (log.solution_json) {
+                        solutionHtml = `
+                            <div class="ai-solution">
+                                <div class="solution-box" id="ai-solution">
+                                    <i class="fas fa-robot"></i>
+                                    <div class="solution-content">
+                                        <strong>AI Insight:</strong>
+                                        <p>${formatSolution(log.solution_json.explanation)}</p>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        // Legacy text solution
+                        solutionHtml = `<div class="ai-solution">
+                            ${log.is_known_error ? '<div style="color: #00cc66; font-weight: bold; margin-bottom: 8px;"><i class="fas fa-history"></i> Solution based on past experience</div>' : ''}
+                            ${formatSolution(log.solution)}
+                        </div>`;
+                    }
+
+                    return `
+                        <div class="log-card">
+                            <div class="log-header">
+                                <div>
+                                    <span class="service-tag">${log.service}</span>
+                                    <span class="timestamp">${new Date(log.timestamp).toLocaleTimeString()}</span>
+                                </div>
+                            </div>
+                            <div class="error-message">${log.message}</div>
+                            <div class="category">
+                                ${log.category}
+                                ${log.is_known_error ? '<span style="background: #00cc66; color: black; margin-left: 8px; padding: 2px 6px; border-radius: 4px; font-weight: bold;"><i class="fas fa-brain"></i> Known Issue</span>' : ''}
+                            </div>
+                            ${log.code_context ? `
+                                <div class="section-title">Code Context</div>
+                                <div class="code-block"><pre><code class="language-python">${escapeHtml(log.code_context)}</code></pre></div>
+                            ` : ''}
+                            <div class="section-title">AI Analysis</div>
+                            ${solutionHtml}
+                            ${!log.is_known_error ? `
+                            <div class="fix-proposal">
+                                <div class="fix-header">
+                                    <span class="fix-title">Was this helpful?</span>
+                                    <button class="apply-btn" onclick="markAsFixed(${log.id})">
+                                        <i class="fas fa-check"></i> Mark as Fixed (Teach AI)
+                                    </button>
+                                </div>
+                                <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0;">
+                                    Clicking this will store the solution in the AI's memory. Next time this error occurs, it will suggest this fix.
+                                </p>
+                            </div>
+                            ` : `
+                            <div class="fix-proposal" style="border-color: var(--accent); background-color: rgba(255, 255, 255, 0.05);">
+                                <div class="fix-header">
+                                    <span class="fix-title" style="color: var(--accent);"><i class="fas fa-check-circle"></i> Knowledge Retrieved</span>
+                                </div>
+                                <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0;">
+                                    The AI used its memory of past fixes to generate this solution.
+                                </p>
+                            </div>
+                            `}
+                        </div>
+                    `;
+                }).join('');
+                Prism.highlightAllUnder(container);
+            } catch (error) {
+                console.error('Error fetching logs:', error);
+            }
+        }
+
+        async function markAsFixed(logId) {
+            try {
+                const btn = event.target;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                btn.disabled = true;
+
+                const response = await fetch(`/feedback/${logId}`, { method: 'POST' });
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    btn.innerHTML = '<i class="fas fa-check-double"></i> Learned!';
+                    btn.style.backgroundColor = '#006633';
+                } else {
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                    alert('Failed to save feedback');
+                }
+            } catch (error) {
+                console.error('Error sending feedback:', error);
+                alert('Error sending feedback');
+            }
+        }
+
+
+
+        // File Tree Logic
+        async function fetchFileTree() {
+            try {
+                const response = await fetch('/api/files');
+                const tree = await response.json();
+                const container = document.getElementById('file-tree-container');
+                container.innerHTML = renderTree(tree);
+            } catch (error) {
+                console.error('Error fetching files:', error);
+            }
+        }
+
+        function renderTree(nodes) {
+            return nodes.map(node => `
+                <div class="tree-node">
+                    <div class="tree-item ${currentFile === node.path ? 'active' : ''}" 
+                         onclick="${node.type === 'file' ? `loadFile('${node.path}')` : ''}">
+                        <i class="fas fa-${node.type === 'directory' ? 'folder' : 'file-code'}"></i>
+                        <span>${node.name}</span>
+                    </div>
+                    ${node.children ? `<div class="tree-children">${renderTree(node.children)}</div>` : ''}
+                </div>
+            `).join('');
+        }
+
+        // Code Viewer Logic
+        async function loadFile(path) {
+            currentFile = path;
+            selectedLines.clear();
+            updateAskAiButton();
+
+            document.getElementById('current-file-path').innerText = path.split('/').pop();
+            document.getElementById('code-empty').style.display = 'none';
+            document.getElementById('code-viewer-container').style.display = 'block';
+
+            fetchFileTree();
+
+            try {
+                const response = await fetch(`/api/files/content?path=${encodeURIComponent(path)}`);
+                const data = await response.json();
+                fileContentLines = data.content.split('\n');
+                renderCode(data.content);
+            } catch (error) {
+                console.error('Error loading file:', error);
+            }
+        }
+
+        function renderCode(content) {
+            let lang = 'python';
+            if (currentFile.endsWith('.js')) lang = 'javascript';
+            if (currentFile.endsWith('.html')) lang = 'html';
+            if (currentFile.endsWith('.json')) lang = 'json';
+            if (currentFile.endsWith('.css')) lang = 'css';
+
+            const highlighted = Prism.highlight(content, Prism.languages[lang] || Prism.languages.python, lang);
+            const highlightedLines = highlighted.split('\n');
+
+            const html = highlightedLines.map((lineHtml, i) => `
+                <div class="code-row" id="line-${i + 1}" onclick="toggleLine(${i + 1}, event)">
+                    <div class="line-number">${i + 1}</div>
+                    <div class="line-code"><pre><code class="language-${lang}">${lineHtml || ' '}</code></pre></div>
+                </div>
+            `).join('');
+
+            document.getElementById('code-viewer-container').innerHTML = html;
+        }
+
+        function toggleLine(lineNum, event) {
+            if (event.shiftKey && selectedLines.size > 0) {
+                const lastSelected = Array.from(selectedLines).pop();
+                const start = Math.min(lastSelected, lineNum);
+                const end = Math.max(lastSelected, lineNum);
+                for (let i = start; i <= end; i++) selectedLines.add(i);
+            } else if (event.ctrlKey || event.metaKey) {
+                if (selectedLines.has(lineNum)) selectedLines.delete(lineNum);
+                else selectedLines.add(lineNum);
+            } else {
+                selectedLines.clear();
+                selectedLines.add(lineNum);
+            }
+            updateSelectionVisuals();
+            updateAskAiButton();
+        }
+
+        function updateSelectionVisuals() {
+            document.querySelectorAll('.code-row').forEach(row => {
+                const lineNum = parseInt(row.querySelector('.line-number').innerText);
+                if (selectedLines.has(lineNum)) row.classList.add('selected');
+                else row.classList.remove('selected');
+            });
+        }
+
+        function updateAskAiButton() {
+            const btn = document.getElementById('ask-ai-btn');
+            if (selectedLines.size > 0) {
+                btn.style.display = 'flex';
+                btn.innerHTML = `<i class="fas fa-magic"></i> Ask AI (${selectedLines.size} lines)`;
+            } else {
+                btn.style.display = 'none';
+            }
+        }
+
+        // Chat Logic
+        function openChat() {
+            if (selectedLines.size === 0) return;
+            const sortedLines = Array.from(selectedLines).sort((a, b) => a - b);
+            snippetStartLine = sortedLines[0];
+            snippetEndLine = sortedLines[sortedLines.length - 1];
+            currentSnippet = sortedLines.map(lineNum => fileContentLines[lineNum - 1]).join('\n');
+
+            document.getElementById('modal-title').innerText = `Ask AI: ${currentFile.split('/').pop()} (${snippetStartLine}-${snippetEndLine})`;
+            document.getElementById('context-preview').innerText = currentSnippet;
+            document.getElementById('chat-messages').innerHTML = `<div class="chat-message ai">How can I help with this code?</div>`;
+
+            document.getElementById('chat-modal').classList.add('active');
+            document.getElementById('chat-input').focus();
+        }
+
+        function closeModal() {
+            document.getElementById('chat-modal').classList.remove('active');
+        }
+
+        async function sendQuestion() {
+            const input = document.getElementById('chat-input');
+            const question = input.value.trim();
+            if (!question) return;
+
+            const chatMessages = document.getElementById('chat-messages');
+            chatMessages.innerHTML += `<div class="chat-message user">${escapeHtml(question)}</div>`;
+            input.value = '';
+
+            const btn = document.getElementById('send-btn');
+            btn.disabled = true;
+            btn.innerText = '...';
+
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        file_path: currentFile,
+                        line_number: snippetStartLine,
+                        code_snippet: currentSnippet,
+                        question: question
+                    })
+                });
+                const data = await response.json();
+                lastAiResponse = data.response;
+                chatMessages.innerHTML += `<div class="chat-message ai">${formatSolution(data.response)}</div>`;
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+
+
+            } catch (error) {
+                chatMessages.innerHTML += `<div class="chat-message ai" style="color: var(--error)">Error: ${error.message}</div>`;
+            } finally {
+                btn.disabled = false;
+                btn.innerText = 'Send';
+            }
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') sendQuestion();
+        }
+
+
+
+        // Utilities
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function formatSolution(text) {
+            if (!text) return '';
+            return escapeHtml(text).replace(/\n/g, '<br>');
+        }
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+.DS_Store
+logs.db
+chroma_db/
+venv/
+.idea/
+.vscode/
