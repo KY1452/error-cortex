@@ -1,4 +1,4 @@
-# Log Analysis Assistant SDK
+# ErrorCortex SDK
 
 A pluggable Python SDK for real-time error tracking and AI-powered analysis.
 
