@@ -1,4 +1,4 @@
-# ErrorCortex SDK
+# ErrorCortex SDK (Public Release)
 
 A pluggable Python SDK for real-time error tracking and AI-powered analysis.
 
