@@ -6,6 +6,7 @@ import re
 import requests
 import sqlite3
 import datetime
+import ast
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -101,8 +102,11 @@ def analyze_with_ai(error_category, log_entry, code_context):
         {code_context}
         {historical_context}
 
-        Please provide a concise explanation of what went wrong and which line is likely causing the issue.
-        Do not provide a JSON response. Just plain text.
+        Please provide a concise explanation of what went wrong.
+        
+        CRITICAL: You MUST provide the corrected code in a Markdown code block (```python ... ```).
+        Return the ENTIRE corrected function or block of code, not just the single line.
+        Do not provide a JSON response. Just plain text with the code block.
         """
 
         payload = {
@@ -114,7 +118,15 @@ def analyze_with_ai(error_category, log_entry, code_context):
         response = requests.post(OLLAMA_URL, json=payload)
         response.raise_for_status()
         response_json = response.json()
-        return response_json.get("response", "No response from AI."), bool(similar_solution)
+        ai_text = response_json.get("response", "No response from AI.")
+        
+        # Syntax Guardrail (Neuro-Symbolic Check)
+        is_valid, syntax_error = validate_python_syntax(ai_text)
+        if not is_valid:
+            print(f" [!] AI generated invalid code: {syntax_error}")
+            ai_text += f"\n\n⚠️ **Syntax Warning**: The generated code failed validation.\n`{syntax_error}`"
+
+        return ai_text, bool(similar_solution)
 
     except requests.exceptions.ConnectionError:
         return json.dumps(
@@ -125,6 +137,29 @@ def analyze_with_ai(error_category, log_entry, code_context):
         ), False
     except Exception as e:
         return json.dumps({"explanation": f"AI Analysis Failed: {e}", "fix": None}), False
+
+
+def validate_python_syntax(text):
+    """
+    Extracts code blocks from markdown and validates them using AST.
+    Returns (is_valid, error_message)
+    """
+    try:
+        # Find all python code blocks: ```python ... ``` or just ``` ... ```
+        code_blocks = re.findall(r'```(?:python)?\s*(.*?)```', text, re.DOTALL)
+        
+        if not code_blocks:
+            return True, None # No code to validate
+
+        for block in code_blocks:
+            try:
+                ast.parse(block)
+            except SyntaxError as e:
+                return False, f"Syntax Error in generated code: {e}"
+        
+        return True, None
+    except Exception as e:
+        return False, f"Validation Failed: {e}"
 
 
 def categorize_error(message, stack_trace):

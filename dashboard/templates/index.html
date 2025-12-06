@@ -220,6 +220,44 @@
             border: 1px solid var(--border);
         }
 
+        .code-block-wrapper {
+            position: relative;
+            margin: 1rem 0;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+        }
+
+        .code-block-wrapper pre {
+            margin: 0;
+            padding: 1rem;
+            background-color: var(--code-bg);
+            overflow-x: auto;
+            font-family: 'Geist Mono', monospace;
+            font-size: 0.85rem;
+            color: #e2e8f0;
+        }
+
+        .copy-btn {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background-color: rgba(255, 255, 255, 0.1);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.2rem 0.6rem;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            z-index: 10;
+        }
+
+        .copy-btn:hover {
+            background-color: var(--accent);
+            color: black;
+        }
+
         .ai-solution {
             background-color: rgba(255, 255, 255, 0.03);
             padding: 1.25rem;
@@ -891,7 +929,55 @@
 
         function formatSolution(text) {
             if (!text) return '';
-            return escapeHtml(text).replace(/\n/g, '<br>');
+
+            // 1. Escape HTML first to prevent XSS, BUT we need to handle code blocks carefully
+            // Actually, it's easier to split by code blocks, escape the text parts, and handle code parts separately
+
+            const parts = text.split(/(```[\s\S]*?```)/g);
+
+            return parts.map(part => {
+                if (part.startsWith('```') && part.endsWith('```')) {
+                    // It's a code block
+                    const content = part.slice(3, -3).replace(/^python\n/, '').trim(); // Remove ``` and optional language
+                    // We don't escape content here because we want to preserve formatting, 
+                    // but we should escape < and > inside the code to display them literally
+                    const escapedContent = content.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+                    return `
+                        <div class="code-block-wrapper">
+                            <button class="copy-btn" onclick="copyToClipboard(this)">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                            <pre><code>${escapedContent}</code></pre>
+                            <div style="display:none" class="raw-code">${encodeURIComponent(content)}</div>
+                        </div>
+                    `;
+                } else {
+                    // It's regular text
+                    return escapeHtml(part).replace(/\n/g, '<br>');
+                }
+            }).join('');
+        }
+
+        function copyToClipboard(btn) {
+            const wrapper = btn.closest('.code-block-wrapper');
+            const rawCode = decodeURIComponent(wrapper.querySelector('.raw-code').innerText);
+
+            navigator.clipboard.writeText(rawCode).then(() => {
+                const originalHtml = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                btn.style.color = '#00cc66';
+                btn.style.borderColor = '#00cc66';
+
+                setTimeout(() => {
+                    btn.innerHTML = originalHtml;
+                    btn.style.color = '';
+                    btn.style.borderColor = '';
+                }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+                btn.innerText = 'Error';
+            });
         }
     </script>
 </body>

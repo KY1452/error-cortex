@@ -10,8 +10,12 @@ import sdk
 def risky_operation():
     print("Performing risky operation...")
     time.sleep(1)
-    # This will raise a ZeroDivisionError
-    result = 10 / 0
+    # Check if divisor is zero before performing division
+    divisor = 0
+    if divisor != 0:
+        result = 10 / divisor
+    else:
+        result = "Cannot divide by zero"
     return result
 
 def main():
